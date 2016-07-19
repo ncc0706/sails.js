@@ -1,0 +1,116 @@
+一、配置文件
+1、Redis配置
+/config/custom/redis.js
+auth_pass 为redis连接密码
+注意:redis配置文件也改成一致的密码,主要目的是防止非授权访问.
+
+2、MySQL配置
+/config/connections.js
+connectionLimit 连接池大小
+注意:在部署到生产环境时根据实际需要(并发)和mysql最大连接数更改此值.
+
+3、端口号和运行时配置
+/config/local.js
+port端口,若此项不配置,则根据environment变量,加载/config/env/下面对应的运行时配置文件中的端口.
+environment,若为production生产运行时,则管理后台引用的CSS和JS文件会被压缩,models.migrate会自动变为safe模式--即不检查表结构,不对表进行更改.
+
+4、模型配置
+/config/models.js
+connection,对应 /config/connections.js 里的连接名称
+migrate,当environment为development开发运行时,启动时:safe--不创建表结构, alter--检查表结构根据model描述文件进行更改,数据不丢失, drop--删除表重新创建,数据丢失.
+
+5、路由配置
+/config/routes.js
+配置访问路径及对应的控制器
+REST风格示例: '/xxx/:ID': 'private/XxxController.xxx'
+控制器通过 req.params.id 获取参数值
+
+6、访问策略配置
+/config/policies.js
+实现全局拦截器功能,对应的处理文件在 /api/policies/ 目录下.
+login.js 文件,后台登录控制器--不对session验证
+sessionAuth.js 文件,根据请求的控制器类型,做相应处理
+
+二、全局配置项
+1、全局拦截器
+/api/policies/sessionAuth.js
+根据请求的路径对应的控制器,判断权限并加载全局view、全局变量等.
+所以本框架要求,后台管理的路径必须为 /private/.. 前台路径必须为 /public/..
+若要优化URL地址,可在/config/routes.js配置路由
+
+2、全局view
+/api/policies/sessionAuth.js
+封装了一个req.data 对象,后台网页请求加载 /views/layouts/private.ejs文件,后台ajax请求加载/views/layouts/layout.ejs(空)文件.
+前台PC请求加载/views/layouts/public.ejs文件,WAP请求加载/views/layouts/public_wap.ejs文件
+
+3、全局变量
+/config/custom/system.js
+为系统预置的全局变量,其中App 前缀以及MyConfig会在启动时从sys_config系统参数表中加载覆盖.
+SiteConfig站点配置信息,从cms_site表中加载,详见 /config/bootstrap.js 文件中的代码实现.
+全局变量的使用:
+后台代码或者EJS<%%>中都可以通过 sails.config.system.AppName 方式获取变量值.
+前台可以在EJS<%%>中通过 SiteConfig 直接输出cms_site值(因为在/api/policies/sessionAuth.js前台req.data对象里封装了SiteConfig)
+
+三、开发注意事项
+1、图片上传
+后台使用uploadifive上传组件,uploadScript配置上传处理路径:
+/open/fileupload/image 普通上传
+/open/fileupload/dbimage 生成缩略图,缩略图大小可以在 CMS-图片管理-图片配置下更改
+使用时在图片路径后面加上 ?type=s 或 ?type=m 即可调用对应大小的图片.
+
+2、关于路径
+/xxx/1 req.params.id取变量
+/xxx?id=1 req.query.id 取变量
+/xxx (post) req.body.id 取变量(对象不可未定义)
+
+3、对象处理
+后台常用函数方法
+JSON.stringify() 将JSON对象转为字符串
+JSON.parse() 将字符串转为JSON对象
+[].forEach(function(o){ })遍历数组对象
+/api/common/StringUtil.js 字符串处理常用方法
+sails.__('update.fail') 获取国际化字符串值
+
+前台常用函数方法
+$.each([],function(i,o){ }) 遍历数组对象
+
+4、增删改查统计
+【增】
+Model.create({ }).exec(function(err,obj){
+//通过JSON对象创建表数据,增加成功则返回obj表对象,其中包含主键ID
+});
+
+【删】
+Model.destroy({ }).exec(function (err) {
+//通过JSON对象组成的条件,如{id:ids},删除表数据,ids可以是1也可以是[1,2,3,4],失败则err不为空
+});
+
+【改】
+Model.update({ }, { }).exec(function (err, list) {
+//前面一个{}是条件,后面一个是{}更改的对象和值,前面一个{}也可以是主键值,如 1
+//注意,成功则返回一个数组对象(影响的记录集合),如果取影响的第一个对象则list[0]获取,失败则err不为空
+});
+
+【查询有三种方式】
+查询一条记录
+Model.findOne({}).populate('xxx').exec(function (err, obj) {
+//{}为查询条件,也可以是主键,如1.populate为关联表数据(xxx)为定义的关联字段名,返回obj表对象
+});
+
+查询多条记录
+Model.find().where({parentId: pid}).sort('location asc').sort('path asc').populate('xxx').exec(function (err, list) {
+//第一种写法,可以这样带条件、排序、关联表数据,返回数组对象
+});
+Model.find({}).sort({location:'desc'}).populate('xxx').exec(function (err, list) {
+//第二种写法,{}是查询条件,返回数组对象
+});
+
+自定义查询
+Model.query('select * from table where a=? and b=?',[1,2],function (err, obj) {
+//可以是select,update等各种语句,?为占位符,第二个参数为占位符对应的数组值
+});
+
+【统计】
+Model.count({}).exec(function(err,count){
+//count为数字
+});
